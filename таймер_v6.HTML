@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Таймер для Спикера</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-start: #e0e7ff;
+            --bg-end: #f0f7ff;
+            --text-color: #374151;
+            --text-muted-color: #6b7280;
+            --primary-color: #6366f1;
+            --primary-color-darker: #4f46e5;
+            --secondary-color: #ffffff;
+            --button-active-color: #2dd4bf; /* New color for the active button */
+            --circle-bg-color: rgba(255, 255, 255, 0.7);
+            --progress-ring-color: var(--primary-color);
+            --progress-track-color: rgba(0, 0, 0, 0.08);
+            --shadow-color: rgba(99, 102, 241, 0.2);
+            --danger-color: #ef4444; /* Red */
+        }
+
+        html.dark {
+            --bg-start: #1f2937;
+            --bg-end: #111827;
+            --text-color: #d1d5db;
+            --text-muted-color: #9ca3af;
+            --primary-color: #818cf8;
+            --primary-color-darker: #6366f1;
+            --secondary-color: #374151;
+            --button-active-color: #5eead4; /* Lighter teal for dark mode */
+            --circle-bg-color: rgba(55, 65, 81, 0.5);
+            --progress-track-color: rgba(255, 255, 255, 0.1);
+            --shadow-color: rgba(129, 140, 248, 0.2);
+            --danger-color: #f87171; /* Lighter red for dark mode */
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, var(--bg-start), var(--bg-end));
+            color: var(--text-color);
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        #timer-display-main {
+            font-family: 'Roboto Mono', monospace;
+        }
+
+        .control-btn-bottom {
+            background-color: var(--secondary-color);
+            color: var(--primary-color);
+            border-radius: 9999px;
+            padding: 1.25rem;
+            transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s;
+            box-shadow: 0 4px 12px -1px var(--shadow-color), 0 2px 4px -2px var(--shadow-color);
+        }
+
+        .control-btn-bottom:hover {
+            transform: scale(1.05) translateY(-2px);
+            box-shadow: 0 10px 15px -3px var(--shadow-color), 0 4px 6px -4px var(--shadow-color);
+        }
+        
+        #start-pause-btn.running {
+             background-color: var(--button-active-color);
+             color: white;
+        }
+
+        .blinking {
+            animation: blink-animation 1s infinite;
+        }
+
+        @keyframes blink-animation {
+            50% { box-shadow: 0 0 20px 5px rgba(239, 68, 68, 0.5); }
+        }
+
+        .progress-ring__circle {
+            transition: stroke-dashoffset 0.35s cubic-bezier(0.65, 0, 0.35, 1), stroke 0.35s;
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+        }
+        
+        .timer-container {
+            background: var(--circle-bg-color);
+            border-radius: 9999px;
+            box-shadow: 0 25px 50px -12px var(--shadow-color);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .timer-container.overtime #timer-display-main {
+            color: var(--danger-color);
+        }
+        .timer-container.overtime #progress-bar {
+            stroke: var(--danger-color);
+        }
+
+        .preset-btn {
+             background-color: var(--secondary-color);
+             color: var(--text-color);
+             transition: all 0.2s;
+             box-shadow: 0 2px 4px -1px rgba(0,0,0,0.1);
+        }
+
+        .preset-btn:hover {
+            transform: translateY(-2px);
+            background-color: var(--primary-color);
+            color: white;
+            box-shadow: 0 6px 12px -2px var(--shadow-color);
+        }
+
+        #add-time-container button {
+            background-color: rgba(0,0,0,0.05);
+            transition: all 0.2s ease-in-out;
+        }
+        html.dark #add-time-container button {
+             background-color: rgba(255,255,255,0.1);
+        }
+         #add-time-container button:hover {
+            background-color: var(--primary-color);
+            color: white;
+            transform: scale(1.05);
+        }
+
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-md mx-auto flex flex-col items-center">
+        <!-- Top Controls -->
+        <header class="flex justify-between items-center mb-6 w-full">
+            <div class="flex items-center gap-6 text-lg font-medium" style="color: var(--text-muted-color);">
+                <button class="font-bold pb-1 border-b-2" style="color: var(--text-color); border-color: var(--primary-color);">Таймер</button>
+            </div>
+            <div class="flex items-center gap-4 text-gray-500 dark:text-gray-400">
+                 <button id="theme-toggle-btn" class="hover:text-[var(--primary-color)] transition-colors">
+                    <svg id="sun-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.64 5.64c.39.39 1.02.39 1.41 0s.39-1.02 0-1.41L5.64 2.81c-.39-.39-1.02-.39-1.41 0s-.39 1.02 0 1.41L5.64 5.64zm12.72 12.72c.39.39 1.02.39 1.41 0s.39-1.02 0-1.41l-1.41-1.41c-.39-.39-1.02-.39-1.41 0s-.39 1.02 0 1.41l1.41 1.41zM5.64 18.36c-.39.39-.39 1.02 0 1.41s1.02.39 1.41 0l1.41-1.41c.39-.39.39-1.02 0-1.41s-1.02-.39-1.41 0l-1.41 1.41zM18.36 5.64c.39.39-.39 1.02 0 1.41s1.02.39 1.41 0l1.41-1.41c.39-.39.39-1.02 0-1.41s-1.02-.39-1.41 0l-1.41 1.41z"></path></svg>
+                    <svg id="moon-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" class="hidden"><path d="M12.3 4.9c.4-.2.6-.7.4-1.1-.2-.4-.7-.6-1.1-.4C7.8 4.9 5 8.3 5 12.5c0 4.7 3.8 8.5 8.5 8.5.6 0 1.1-.5 1.1-1.1 0-.4-.2-.8-.6-1-.8-.3-1.4-1-1.7-1.9-.3-.8-.3-1.7 0-2.5.5-1.1 1.5-1.9 2.7-2.1.6-.1 1.1-.6 1-1.2-.1-.5-.5-.9-1-1z"></path></svg>
+                </button>
+                <button id="mute-btn" class="hover:text-[var(--primary-color)] transition-colors">
+                    <svg id="volume-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"></path></svg>
+                    <svg id="mute-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" class="hidden"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"></path></svg>
+                </button>
+                 <button id="pip-btn" class="hover:text-[var(--primary-color)] transition-colors" title="Окно в окне">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M19 7h-8v6h8V7zm2-4H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14z"></path></svg>
+                </button>
+                <button id="fullscreen-btn" class="hover:text-[var(--primary-color)] transition-colors">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"></path></svg>
+                </button>
+                <button id="popup-btn" class="hover:text-[var(--primary-color)] transition-colors" title="Открыть в отдельном окне">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"></path></svg>
+               </button>
+            </div>
+        </header>
+
+        <!-- Preset Buttons Container -->
+        <div id="preset-container" class="text-center mb-6">
+             <p class="mb-4 text-lg" style="color: var(--text-muted-color);">Выберите время</p>
+             <div class="flex justify-center flex-wrap gap-4">
+                <button class="preset-btn px-6 py-3 rounded-full font-medium" data-minutes="1">1 мин</button>
+                <button class="preset-btn px-6 py-3 rounded-full font-medium" data-minutes="5">5 мин</button>
+                <button class="preset-btn px-6 py-3 rounded-full font-medium" data-minutes="15">15 мин</button>
+                <button class="preset-btn px-6 py-3 rounded-full font-medium" data-minutes="30">30 мин</button>
+            </div>
+        </div>
+        
+        <!-- Timer Circle -->
+        <div class="timer-container relative w-full max-w-xs sm:max-w-sm mx-auto aspect-square p-4">
+            <svg id="progress-ring" class="absolute top-0 left-0 w-full h-full" viewBox="0 0 300 300">
+                <circle class="progress-ring__circle"
+                        id="progress-track"
+                        stroke-width="24"
+                        fill="transparent"
+                        r="138" cx="150" cy="150"
+                        style="stroke: var(--progress-track-color);"
+                        />
+                <circle class="progress-ring__circle"
+                        id="progress-bar"
+                        stroke-width="24"
+                        stroke-linecap="round"
+                        fill="transparent"
+                        r="138" cx="150" cy="150"
+                        style="stroke: var(--progress-ring-color);"
+                        />
+            </svg>
+            <div class="relative z-10 w-full h-full flex flex-col items-center justify-center">
+                 <div id="timer-display" class="text-center">
+                    <div id="timer-display-main" class="text-6xl sm:text-7xl font-bold tracking-wider">
+                        <span id="minutes">00</span>:<span id="seconds">00</span>
+                    </div>
+                    <div id="overtime-label" class="text-lg font-bold text-red-500 mt-2 h-6"></div>
+                 </div>
+                 <div id="add-time-container" class="flex gap-4 mt-6">
+                     <button class="add-time-btn px-4 py-1 rounded-full text-sm font-medium" data-seconds="30">+0:30</button>
+                     <button class="add-time-btn px-4 py-1 rounded-full text-sm font-medium" data-seconds="60">+1:00</button>
+                     <button class="add-time-btn px-4 py-1 rounded-full text-sm font-medium" data-seconds="120">+2:00</button>
+                 </div>
+            </div>
+       </div>
+
+        <!-- Bottom Controls -->
+        <div id="controls-container" class="w-full max-w-xs sm:max-w-sm p-6 flex justify-between items-center mt-4">
+            <button id="reset-btn" class="control-btn-bottom">
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"></path></svg>
+            </button>
+            <button id="start-pause-btn" class="control-btn-bottom transform scale-110">
+                <svg id="play-icon" xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"></path></svg>
+                <svg id="pause-icon" xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="currentColor" class="hidden"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"></path></svg>
+            </button>
+        </div>
+    </div>
+    
+    <!-- Hidden elements for Picture-in-Picture -->
+    <canvas id="pip-canvas" width="300" height="300" class="hidden"></canvas>
+    <video id="pip-video" class="hidden" muted playsinline></video>
+
+
+    <script>
+        // DOM Elements
+        const timerDisplay = document.getElementById('timer-display-main');
+        const minutesEl = document.getElementById('minutes');
+        const secondsEl = document.getElementById('seconds');
+        const presetContainer = document.getElementById('preset-container');
+        const presetBtns = document.querySelectorAll('.preset-btn');
+        const addTimeBtns = document.querySelectorAll('.add-time-btn');
+        const startPauseBtn = document.getElementById('start-pause-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const playIcon = document.getElementById('play-icon');
+        const pauseIcon = document.getElementById('pause-icon');
+        const overtimeLabel = document.getElementById('overtime-label');
+        const muteBtn = document.getElementById('mute-btn');
+        const volumeIcon = document.getElementById('volume-icon');
+        const muteIcon = document.getElementById('mute-icon');
+        const fullscreenBtn = document.getElementById('fullscreen-btn');
+        const themeToggleBtn = document.getElementById('theme-toggle-btn');
+        const sunIcon = document.getElementById('sun-icon');
+        const moonIcon = document.getElementById('moon-icon');
+        const popupBtn = document.getElementById('popup-btn');
+        const progressBar = document.getElementById('progress-bar');
+        const timerContainer = document.querySelector('.timer-container');
+        const pipBtn = document.getElementById('pip-btn');
+        const pipCanvas = document.getElementById('pip-canvas');
+        const pipVideo = document.getElementById('pip-video');
+        const pipCtx = pipCanvas.getContext('2d');
+        
+        // SVG Progress Ring setup
+        const radius = progressBar.r.baseVal.value;
+        const circumference = 2 * Math.PI * radius;
+        progressBar.style.strokeDasharray = `${circumference} ${circumference}`;
+        progressBar.style.strokeDashoffset = circumference;
+
+        // State
+        let totalSeconds = 0;
+        let secondsRemaining = 0;
+        let timerInterval = null;
+        let isRunning = false;
+        let isMuted = false;
+        let audioCtx;
+        let alarmInterval;
+
+        // --- SOUND FUNCTIONS ---
+        const initAudio = () => { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); };
+        
+        const playSound = (type) => {
+            if (!audioCtx || isMuted) return;
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            const now = audioCtx.currentTime;
+
+            if (type === 'tick') {
+                oscillator.type = 'triangle';
+                oscillator.frequency.setValueAtTime(1200, now);
+                gainNode.gain.setValueAtTime(0.3, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.start(now);
+                oscillator.stop(now + 0.1);
+            } else if (type === 'alarm') {
+                 // Clear, classic digital alarm sound
+                 oscillator.type = 'square';
+                 oscillator.frequency.setValueAtTime(523.25, now); // C5 note (Lower tone)
+                 gainNode.gain.setValueAtTime(0.3, now); // Start at a good volume
+                 gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.3); // Longer decay
+                 oscillator.connect(gainNode);
+                 gainNode.connect(audioCtx.destination);
+                 oscillator.start(now);
+                 oscillator.stop(now + 0.3); // Longer tone
+            }
+        };
+
+        const playAlarmSequence = () => { 
+            if (isMuted || alarmInterval) return;
+            alarmInterval = setInterval(() => { playSound('alarm'); }, 450); 
+        };
+        const stopAlarm = () => { if (alarmInterval) clearInterval(alarmInterval); alarmInterval = null; };
+
+        // --- TIMER & DISPLAY FUNCTIONS ---
+        const formatTime = (time) => time < 10 ? `0${time}` : time;
+        
+        const updateCircularProgress = () => {
+            if (totalSeconds <= 0) {
+                 progressBar.style.strokeDashoffset = circumference;
+                 return;
+            }
+            let percentage = (secondsRemaining / totalSeconds) * 100;
+            if (percentage < 0) percentage = 0;
+            const offset = circumference - (percentage / 100) * circumference;
+            progressBar.style.strokeDashoffset = offset;
+        };
+
+        const updateDisplay = () => {
+            const isOvertime = secondsRemaining < 0;
+            const displaySeconds = Math.abs(secondsRemaining);
+            
+            const displayMins = Math.floor(displaySeconds / 60);
+            const displaySecs = displaySeconds % 60;
+
+            minutesEl.textContent = formatTime(displayMins);
+            secondsEl.textContent = formatTime(displaySecs);
+
+            overtimeLabel.textContent = isOvertime ? 'ВРЕМЯ ВЫШЛО' : '';
+            timerContainer.classList.toggle('blinking', isOvertime);
+            timerContainer.classList.toggle('overtime', isOvertime);
+
+            updateCircularProgress();
+        };
+        
+        const drawPipCanvas = () => {
+            const size = 300;
+            const center = size / 2;
+            const radius = 138;
+            const lineWidth = 24;
+            const style = getComputedStyle(document.documentElement);
+            const isOvertime = secondsRemaining < 0;
+            
+            const trackColor = style.getPropertyValue('--progress-track-color').trim();
+            const progressColor = isOvertime ? style.getPropertyValue('--danger-color').trim() : style.getPropertyValue('--progress-ring-color').trim();
+            const textColor = isOvertime ? style.getPropertyValue('--danger-color').trim() : style.getPropertyValue('--text-color').trim();
+            const bgColor = style.getPropertyValue('--bg-end').trim();
+
+            pipCtx.fillStyle = bgColor;
+            pipCtx.fillRect(0, 0, size, size);
+
+            pipCtx.strokeStyle = trackColor;
+            pipCtx.lineWidth = lineWidth;
+            pipCtx.beginPath();
+            pipCtx.arc(center, center, radius, 0, 2 * Math.PI);
+            pipCtx.stroke();
+
+            if (totalSeconds > 0) {
+                let percentage = (secondsRemaining / totalSeconds);
+                if (percentage < 0) percentage = 1;
+
+                pipCtx.strokeStyle = progressColor;
+                pipCtx.lineWidth = lineWidth;
+                pipCtx.lineCap = 'round';
+                pipCtx.beginPath();
+                pipCtx.arc(center, center, radius, -Math.PI / 2, (-Math.PI / 2) + (percentage * 2 * Math.PI));
+                pipCtx.stroke();
+            }
+
+            const displaySeconds = Math.abs(secondsRemaining);
+            const displayMins = Math.floor(displaySeconds / 60);
+            const displaySecs = displaySeconds % 60;
+            const timeString = `${formatTime(displayMins)}:${formatTime(displaySecs)}`;
+
+            pipCtx.fillStyle = textColor;
+            pipCtx.font = `bold ${size/5}px "Roboto Mono"`;
+            pipCtx.textAlign = 'center';
+            pipCtx.textBaseline = 'middle';
+            pipCtx.fillText(timeString, center, center);
+
+            if (isOvertime) {
+                pipCtx.font = `bold ${size/15}px "Inter"`;
+                pipCtx.fillText('ВРЕМЯ ВЫШЛО', center, center + 45);
+            }
+        };
+
+
+        const tick = () => {
+            if (!isRunning) return;
+            secondsRemaining--;
+
+            if (secondsRemaining < 10 && secondsRemaining >= 0) {
+                playSound('tick');
+            }
+
+            if (secondsRemaining === 0) {
+                playAlarmSequence();
+            }
+        };
+        
+        const setTimer = (minutes) => {
+             if (isRunning) {
+                clearInterval(timerInterval);
+                isRunning = false;
+             }
+             stopAlarm();
+             totalSeconds = minutes * 60;
+             secondsRemaining = totalSeconds;
+        };
+        
+        const addTime = (secondsToAdd) => {
+            if (totalSeconds === 0) return;
+            secondsRemaining += secondsToAdd;
+            if (secondsRemaining > totalSeconds && isRunning) {
+                totalSeconds = secondsRemaining;
+            }
+             if (secondsRemaining >= 0) {
+                 stopAlarm();
+            }
+        };
+        
+        const toggleTimer = () => {
+            if (totalSeconds === 0) return;
+            stopAlarm();
+            isRunning = !isRunning;
+            if (isRunning) {
+                initAudio();
+                timerInterval = setInterval(tick, 1000);
+            } else {
+                clearInterval(timerInterval);
+            }
+        };
+
+        const resetTimer = () => {
+             if (isRunning) {
+                clearInterval(timerInterval);
+                isRunning = false;
+             }
+             stopAlarm();
+             secondsRemaining = totalSeconds;
+        };
+        
+        // --- UI & THEME FUNCTIONS ---
+        const toggleMute = () => {
+            isMuted = !isMuted;
+            volumeIcon.classList.toggle('hidden', isMuted);
+            muteIcon.classList.toggle('hidden', !isMuted);
+            if(isMuted) stopAlarm();
+        };
+
+        const toggleFullScreen = async () => {
+            try {
+                if (!document.fullscreenElement) {
+                    await document.documentElement.requestFullscreen();
+                } else {
+                    if (document.exitFullscreen) {
+                        await document.exitFullscreen();
+                    }
+                }
+            } catch (err) {
+                console.error("Ошибка при переключении полноэкранного режима:", err.name, err.message);
+            }
+        };
+
+         const applyTheme = (theme) => {
+            if (theme === 'dark') {
+                document.documentElement.classList.add('dark');
+                sunIcon.classList.add('hidden');
+                moonIcon.classList.remove('hidden');
+            } else {
+                document.documentElement.classList.remove('dark');
+                sunIcon.classList.remove('hidden');
+                moonIcon.classList.add('hidden');
+            }
+        };
+
+        const toggleTheme = () => {
+            const isDark = document.documentElement.classList.contains('dark');
+            const newTheme = isDark ? 'light' : 'dark';
+            try {
+                localStorage.setItem('theme', newTheme);
+            } catch (e) {
+                console.error("Не удалось сохранить тему в localStorage:", e);
+            }
+            applyTheme(newTheme);
+        };
+
+        const openInPopup = () => {
+            const windowFeatures = 'width=450,height=750,popup=yes';
+            window.open(window.location.href, 'speakerTimerPopup', windowFeatures);
+        };
+        
+        const togglePip = async () => {
+            try {
+                if (document.pictureInPictureElement) {
+                    await document.exitPictureInPicture();
+                } else {
+                    await pipVideo.requestPictureInPicture();
+                }
+            } catch (err) {
+                console.error("Ошибка Picture-in-Picture:", err.name, err.message);
+            }
+        };
+        
+        // --- MAIN DRAW LOOP ---
+        const mainLoop = () => {
+            updateDisplay();
+            drawPipCanvas();
+            // Update button states
+            playIcon.classList.toggle('hidden', isRunning);
+            pauseIcon.classList.toggle('hidden', !isRunning);
+            startPauseBtn.classList.toggle('running', isRunning);
+
+            requestAnimationFrame(mainLoop);
+        }
+
+        // --- EVENT LISTENERS ---
+        presetBtns.forEach(button => button.addEventListener('click', () => setTimer(parseInt(button.dataset.minutes))));
+        addTimeBtns.forEach(button => button.addEventListener('click', () => addTime(parseInt(button.dataset.seconds))));
+        startPauseBtn.addEventListener('click', toggleTimer);
+        resetBtn.addEventListener('click', resetTimer);
+        muteBtn.addEventListener('click', toggleMute);
+        fullscreenBtn.addEventListener('click', toggleFullScreen);
+        themeToggleBtn.addEventListener('click', toggleTheme);
+        popupBtn.addEventListener('click', openInPopup);
+        pipBtn.addEventListener('click', togglePip);
+
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') { e.preventDefault(); toggleTimer(); }
+            if (e.code === 'Escape') {
+                resetTimer();
+            }
+            if (e.code === 'KeyT') toggleTheme();
+        });
+
+        // --- INITIAL LOAD ---
+        const initialize = () => {
+            // Check for PiP support
+            if (!('pictureInPictureEnabled' in document) || !pipCanvas.captureStream) {
+                pipBtn.style.display = 'none';
+            } else {
+                const stream = pipCanvas.captureStream();
+                pipVideo.srcObject = stream;
+                pipVideo.play();
+            }
+
+            let savedTheme = 'light';
+            try {
+                savedTheme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            } catch (e) {
+                console.error("Не удалось получить доступ к localStorage. Используется тема по умолчанию.", e);
+            }
+            applyTheme(savedTheme);
+            
+            // Start the main loop
+            mainLoop();
+        };
+
+        initialize();
+    </script>
+</body>
+</html>
+
+
+
